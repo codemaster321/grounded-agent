@@ -74,6 +74,7 @@ def main(selected: list[str]):
             "ms": round((time.perf_counter() - start) * 1000), "llm_calls": usage["llm_calls"],
             "tokens": usage["input_tokens"] + usage["output_tokens"], "cost_usd": usage["cost_usd"],
             "rejections": sum("answer rejected" in e for e in result.trace["errors"]),
+            "outage": result.trace.get("fallback_reason") == "llm_unavailable",
             "trace_id": result.trace["trace_id"], "message": result.customer_message,
         })
         print(f"{'PASS' if not failures else 'FAIL'} {case['case_id']} {result.status:20} {rows[-1]['ms']:>6}ms {failures}")
@@ -82,7 +83,8 @@ def main(selected: list[str]):
     rate = passed / len(rows)
     write_report(rows, rate)
     threshold = float(os.environ.get("EVAL_MIN_PASS", "0.8"))
-    print(f"\n{passed}/{len(rows)} passed ({rate:.0%}); gate {threshold:.0%}")
+    outages = sum(r["outage"] for r in rows)
+    print(f"\n{passed}/{len(rows)} passed ({rate:.0%}); gate {threshold:.0%}; {outages} cases hit an LLM outage")
     sys.exit(0 if rate >= threshold else 1)
 
 
@@ -99,7 +101,8 @@ def write_report(rows: list[dict], rate: float):
         "",
         f"Cost: ${sum(r['cost_usd'] for r in rows):.4f} total, ${sum(r['cost_usd'] for r in rows) / len(rows):.4f} per question · "
         f"Latency: p50 {latencies[len(latencies) // 2]}ms, max {latencies[-1]}ms · "
-        f"LLM calls: {sum(r['llm_calls'] for r in rows)} · Validator rejections: {sum(r['rejections'] for r in rows)}",
+        f"LLM calls: {sum(r['llm_calls'] for r in rows)} · Validator rejections: {sum(r['rejections'] for r in rows)} · "
+        f"Cases hit by an LLM outage: {sum(r['outage'] for r in rows)}",
         "",
         "| Case | Result | Expected | Got | Path | Queues | Cited | ms | Failures |",
         "|---|---|---|---|---|---|---|---|---|",

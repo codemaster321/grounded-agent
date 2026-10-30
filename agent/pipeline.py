@@ -27,7 +27,7 @@ MAX_LLM_CALLS = 5
 MAX_REJECTIONS = 2  # the first rejected answer goes back to the LLM; the second ends in the safe fallback
 ALWAYS_IN_CONTEXT = ["POL-SVC-006"]  # routing queues are needed whenever a request might be raised
 LIMIT_REQUEST = re.compile(
-    r"\blimit\b.*\b(increase|raise|higher|more|bigger|up)\b|\b(increase|raise|higher|bigger)\b.*\blimit\b", re.I
+    r"\blimit\b.*\b(increas\w*|rais\w*|higher|more|bigger|up)\b|\b(increas\w*|rais\w*|higher|bigger)\b.*\blimit\b", re.I
 )
 
 # Customer-facing SLAs as worded in POL-SVC-006 (the tool's sla_hours is a conversion; see tools.py).

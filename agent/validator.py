@@ -14,6 +14,7 @@ _NUMBER = re.compile(r"\d[\d,]*(?:\.\d+)?")
 # "approved reason codes" is POL-GOV-009's own wording, not an approval (false positive found by EV-011).
 _APPROVAL = re.compile(r"\b(approved(?!\s+reason)|actioned|has been (increased|raised)|have (increased|raised))\b", re.I)
 _SALES = re.compile(r"\b(offer|upgrade|apply for|personal loan|eligible for)\b", re.I)
+PRODUCTS = ("Classic", "Signature")
 
 
 @dataclass
@@ -30,6 +31,18 @@ class Context:
 def numbers(text: str) -> set[float]:
     # "1,50,000" (Indian grouping) and "150,000" both become 150000.0
     return {float(n.replace(",", "")) for n in _NUMBER.findall(text)}
+
+
+def _other_product_figures(chunk: Chunk, product: str) -> set[float]:
+    """Figures in this chunk that belong only to a card the customer does not hold."""
+    others = [p for p in PRODUCTS if p != product]
+    if any(p in chunk.section for p in others):
+        return numbers(chunk.text)
+    # A shared table, e.g. POL-FEE-007 lists both cards' waiver thresholds in one chunk.
+    lines = chunk.text.splitlines()
+    foreign = [line for line in lines if any(p in line for p in others)]
+    shared = [line for line in lines if line not in foreign]
+    return numbers("\n".join(foreign)) - numbers("\n".join(shared))
 
 
 def _source_text(citation: str, ctx: Context) -> str | None:
@@ -69,6 +82,14 @@ def validate(answer: AgentAnswer, ctx: Context) -> list[str]:
         if sources and unsupported:
             errors.append(f"{label} states {sorted(unsupported)}, which do not appear in its cited sources. "
                           "Only restate figures from the cited policy or account field; do not calculate new ones.")
+        product = ctx.account.get("card_product") if ctx.account else None
+        if product:
+            foreign = set().union(*(_other_product_figures(ctx.chunks[c], product) for c in claim.citations if c in ctx.chunks))
+            # Naming the other card ("Signature waives it at 4,00,000") is a comparison, not a misquote.
+            names_other_card = any(p.lower() in claim.text.lower() for p in PRODUCTS if p != product)
+            if foreign & numbers(claim.text) and not names_other_card:
+                errors.append(f"{label} gives a figure for a different card. This customer holds {product}: "
+                              "use that card's figure.")
 
     message = " ".join(c.text for c in answer.claims)
     if _APPROVAL.search(message):

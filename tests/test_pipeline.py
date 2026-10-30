@@ -52,6 +52,14 @@ def test_mandatory_decline_is_stated_by_code_without_a_model_call(retriever):
     assert llm.seen == [] and "POL-CRD-001#3" in result.customer_message
 
 
+@pytest.mark.parametrize("question", ["I want my credit limit increased to 3 lakh.", "Can you raise my limit?"])
+def test_mandatory_decline_survives_a_model_outage(retriever, question):
+    def down(messages, tools_spec):
+        raise LLMUnavailable("both models down")
+    result = Agent(retriever, down).answer("CUST-2003", question)
+    assert (result.status, result.path) == ("decline_with_reason", "rules")
+
+
 def test_all_of_a_declines_citations_are_shown(retriever):
     result = Agent(retriever, ScriptedLLM()).answer("CUST-2006", "Can you increase my limit?")
     assert {"POL-CON-004", "POL-CRD-001"} <= set(result.cited_docs)
@@ -90,6 +98,30 @@ def test_excluded_document_cannot_be_cited_even_if_it_reaches_the_context(monkey
     fake = [submit("answer", [("Your increase is fine.", ["POL-OPS-012"])])]
     result = Agent(leaky, ScriptedLLM(fake, fake)).answer("CUST-2000", "What do the notes say?")
     assert result.path == "safe_fallback" and "POL-OPS-012" not in result.customer_message
+
+
+@pytest.mark.parametrize("customer_id, question, text, citation, path", [
+    # Signature's rate told to a Classic customer: a real source, the wrong card.
+    ("CUST-2004", "What is the interest rate if I do not pay in full?",
+     "Your revolve rate is 3.1% per month.", "POL-PRD-010#signature-card", "safe_fallback"),
+    ("CUST-2004", "What is the interest rate if I do not pay in full?",
+     "Your revolve rate is 3.4% per month.", "POL-PRD-010#classic-card", "llm"),
+    # Same mistake inside a shared table.
+    ("CUST-2009", "What is the annual fee waiver?",
+     "Your annual fee is waived on spend of 4,00,000.", "POL-FEE-007", "safe_fallback"),
+    ("CUST-2009", "What is the annual fee waiver?",
+     "Your annual fee is waived on spend of 1,50,000.", "POL-FEE-007", "llm"),
+    # Figures shared by both cards are not a misquote.
+    ("CUST-2009", "What is the foreign markup?",
+     "The foreign currency markup is 3.5%.", "POL-FEE-007", "llm"),
+    # An explicit comparison names the other card.
+    ("CUST-2009", "What is the annual fee waiver?",
+     "The Signature card needs spend of 4,00,000.", "POL-FEE-007", "llm"),
+])
+def test_figures_must_belong_to_the_customers_card(retriever, customer_id, question, text, citation, path):
+    fake = [submit("answer", [(text, [citation])], intent="fees")]
+    result = Agent(retriever, ScriptedLLM(fake, fake)).answer(customer_id, question)
+    assert result.path == path
 
 
 def test_llm_outage_gives_a_clear_message_and_a_ticket(retriever):
