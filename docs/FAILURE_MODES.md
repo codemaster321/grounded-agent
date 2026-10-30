@@ -37,4 +37,6 @@ This shows the layers hold for these three phrasings. It does not show they hold
 | EV-011 | My "approved" check blocked POL-GOV-009's "approved reason codes" | Regex exception. Same class still open, see EV-025 |
 | Live run | Fallback chain treated our own import error as an outage | Falls back on provider errors only |
 | Break demo | Non-policy document could be cited once in context | Excluded documents are uncitable |
-| Eval on the fallback | Fallback model passes 24/30, not the primary's 86/90 | Not fixed. See README |
+| Scripted test | A Classic customer could be told Signature's rate: real source, wrong card | Figures from another card are rejected unless the sentence names that card |
+| Live outage | "limit increased" missed the keyword check, so a mandatory decline became a generic fallback | Detection widened; a test proves declines survive an outage |
+| Eval on the fallback | Fallback model passes 24/30, against the primary's 85/90 | Not fixed. See README |

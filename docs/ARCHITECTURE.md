@@ -118,9 +118,9 @@ customer question + customer_id (from the session, never from the LLM)
 
 ## Cost, latency and concurrency (measured over 90 primary-model runs)
 
-- **Cost:** about $0.0018 per question. Single-turn only, so cost per conversation is an estimate:
-  about $0.005 for an assumed three questions.
-- **Latency:** p50 3.0s, p95 9.0s, max 12.6s. Rule-based declines take about 0.4s (the
+- **Cost:** about $0.0014 per question. Single-turn only, so cost per conversation is an estimate:
+  about $0.004 for an assumed three questions.
+- **Latency:** p50 2.9s, p95 9.7s, max 11.2s. Rule-based declines take about 0.4s (the
   simulated account call) and cost nothing: 18 of the 90 runs.
 - **Biggest cost levers:** avoiding model calls (more rule paths) and the validator retry,
   which adds a whole extra call. Reasoning effort took one call from 21s to about 6s.
