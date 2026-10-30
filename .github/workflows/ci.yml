@@ -1,0 +1,41 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  unit:
+    # Deterministic: fake LLM, no key, no cost. Covers the safety paths.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12", cache: pip }
+      - run: pip install -r requirements.txt
+      - uses: actions/cache@v4
+        with: { path: /tmp/fastembed_cache, key: fastembed-bge-small-en-v1.5 }
+      - run: pytest -q
+        env: { FASTEMBED_CACHE_PATH: /tmp/fastembed_cache }
+
+  eval-gate:
+    # The real model against eval/cases.csv. Fails the build below EVAL_MIN_PASS.
+    # Runs on PRs that touch behaviour, so a prompt or rule change cannot merge on vibes.
+    needs: unit
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12", cache: pip }
+      - run: pip install -r requirements.txt
+      - uses: actions/cache@v4
+        with: { path: /tmp/fastembed_cache, key: fastembed-bge-small-en-v1.5 }
+      - run: python -m eval.run_eval
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          FASTEMBED_CACHE_PATH: /tmp/fastembed_cache
+          EVAL_MIN_PASS: "0.85"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: { name: eval-results, path: "eval/results.*" }

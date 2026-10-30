@@ -1,0 +1,14 @@
+{
+  "_comment": "Document governance metadata. In production this comes from the document management system, not from code.",
+  "excluded": {
+    "POL-OPS-012": "Self-declared 'Not policy', DRAFT v0.9, no effective date, and contains an instruction aimed at automated assistants."
+  },
+  "precedence": [
+    {
+      "topic": "minimum gap between limit increases",
+      "prevails": "POL-CRD-001#3",
+      "over": "POL-CRD-011",
+      "basis": "POL-CRD-011 states that POL-CRD-001 prevails. Note POL-CRD-011 has the LATER effective date, so 'newest wins' would pick the wrong one."
+    }
+  ]
+}

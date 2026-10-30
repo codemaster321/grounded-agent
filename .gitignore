@@ -1,0 +1,7 @@
+.venv/
+__pycache__/
+.pytest_cache/
+.env
+traces/*.jsonl
+docs/session/
+eval/repeat_*
