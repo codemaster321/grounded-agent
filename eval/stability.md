@@ -1,6 +1,6 @@
 # Eval stability
 
-Three full runs on the primary model (`openai/gpt-5.4-mini`) and one on the fallback (`openai/gpt-4.1-mini`), same code and prompt. `eval/results.md` is the last primary run.
+Three full runs on the primary model (`openai/gpt-5.4-mini`) and one on the fallback (`openai/gpt-4.1-mini`), same code and prompt. `eval/results.md` is the latest primary run.
 
 | Run | Passed | Cost | LLM calls | Validator rejections |
 |---|---|---|---|---|
@@ -8,6 +8,8 @@ Three full runs on the primary model (`openai/gpt-5.4-mini`) and one on the fall
 | primary 2 | 28/30 | $0.0433 | 34 | 4 |
 | primary 3 | 28/30 | $0.0399 | 33 | 3 |
 | fallback | 24/30 | $0.0169 | 34 | 9 |
+
+One further primary run after the final validator fix (checks on `uncovered`) scored 28/30, failing EV-005 and EV-012 (a code-stated decline instead of a refusal). `eval/results.md` is that run. It is not in the tables here.
 
 Cases that did not pass every run (P pass, F fail):
 

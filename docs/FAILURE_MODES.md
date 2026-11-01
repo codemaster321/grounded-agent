@@ -38,5 +38,6 @@ This shows the layers hold for these three phrasings. It does not show they hold
 | Live run | Fallback chain treated our own import error as an outage | Falls back on provider errors only |
 | Break demo | Non-policy document could be cited once in context | Excluded documents are uncitable |
 | Scripted test | A Classic customer could be told Signature's rate: real source, wrong card | Figures from another card are rejected unless the sentence names that card |
+| Scripted test | The `uncovered` text reached the customer unchecked, so "your limit has been approved" got through | `uncovered` gets the same wording checks as claims, and can't carry new figures |
 | Live outage | "limit increased" missed the keyword check, so a mandatory decline became a generic fallback | Detection widened; a test proves declines survive an outage |
 | Eval on the fallback | Fallback model passes 24/30, against the primary's 85/90 | Not fixed. See README |

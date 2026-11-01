@@ -91,7 +91,11 @@ def validate(answer: AgentAnswer, ctx: Context) -> list[str]:
                 errors.append(f"{label} gives a figure for a different card. This customer holds {product}: "
                               "use that card's figure.")
 
-    message = " ".join(c.text for c in answer.claims)
+    # `uncovered` is shown to the customer too. It has no citations, so it can't carry new figures.
+    if answer.uncovered and numbers(answer.uncovered) - question_numbers:
+        errors.append("`uncovered` must only name the topic in a few words, with no figures.")
+
+    message = " ".join([c.text for c in answer.claims] + [answer.uncovered or ""])
     if _APPROVAL.search(message):
         errors.append("The answer says something was approved or actioned. This assistant cannot approve or action anything.")
     for value in ctx.hidden_values:

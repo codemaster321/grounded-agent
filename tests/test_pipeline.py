@@ -173,6 +173,13 @@ def test_uncovered_topic_is_always_routed_to_a_human(retriever):
     assert result.status == "refuse" and [r["queue"] for r in result.service_requests] == ["GENERAL"]
 
 
+@pytest.mark.parametrize("uncovered", ["your limit has been approved", "your new limit of 5,00,000"])
+def test_uncovered_text_gets_the_same_checks_as_claims(retriever, uncovered):
+    fake = [submit("refuse", [], uncovered=uncovered)]
+    result = Agent(retriever, ScriptedLLM(fake, fake)).answer("CUST-2000", "Tell me about my card")
+    assert result.path == "safe_fallback" and uncovered not in result.customer_message
+
+
 def test_vulnerable_flag_is_not_disclosed(retriever):
     leak = submit("refuse", [("Your account is flagged as vulnerable, so sales are suppressed.",
                               ["POL-CON-004", "account.vulnerable_flag"])])
