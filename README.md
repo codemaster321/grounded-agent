@@ -1,6 +1,6 @@
 # Grounded service agent
 
-**What I built.** A CLI agent that answers card questions from the 12-document policy corpus and the customer's account state. It uses hybrid retrieval (BM25 + embeddings with RRF), both supplied tools and a schema-validated answer in which every claim carries a citation checked in code. The principle is that the LLM explains and code decides: mandatory declines are decided and worded in code, the LLM never sees the internal score, and customer text is rendered from validated claims only. There is no approve path. Every failure ends in a defined message and one trace line. Details: [ARCHITECTURE](docs/ARCHITECTURE.md), [FAILURE_MODES](docs/FAILURE_MODES.md), [sample traces](docs/sample_traces.jsonl).
+**What I built.** An agent, with a CLI and a small chat page, that answers card questions from the 12-document policy corpus and the customer's account state. It uses hybrid retrieval (BM25 + embeddings with RRF), both supplied tools and a schema-validated answer in which every claim carries a citation checked in code. The principle is that the LLM explains and code decides: mandatory declines are decided and worded in code, the LLM never sees the internal score, and customer text is rendered from validated claims only. There is no approve path. Every failure ends in a defined message and one trace line. Details: [ARCHITECTURE](docs/ARCHITECTURE.md), [FAILURE_MODES](docs/FAILURE_MODES.md), [sample traces](docs/sample_traces.jsonl).
 
 **Results.** 30 cases (12 seed, 18 mine). Three runs of the primary model: **29, 28, 28 of 30** (85/90). The fallback model: **24/30**. About $0.0014 per question, p50 2.9s, p95 9.7s. The remaining primary failures are EV-005 (all three runs) and EV-014 (two): both give the safe behaviour but a different status from the expected one, and I left those expectations unchanged. Per-case detail is in [eval/stability.md](eval/stability.md) and [eval/results.md](eval/results.md). The first runs scored 25–27/30; the increase came from fixes in [FAILURE_MODES](docs/FAILURE_MODES.md), and the prompt and some checks were tuned while looking at these same cases. One set of runs was discarded because the network failed mid-run (12/30); the eval now reports outages separately, but the gate does not yet exclude them.
 
@@ -70,7 +70,7 @@ Full reasoning: [ARCHITECTURE](docs/ARCHITECTURE.md).
 
 **Deliberately not built.**
 - **Streaming:** text must pass validation before the customer sees it, so streaming tokens would defeat the check.
-- **Vector DB, API server, UI:** 12 documents fit in memory, and none of these is being assessed.
+- **Vector DB, API server, login:** 12 documents fit in memory, and none of these is being assessed. The chat page (`app.py`) is a thin screen over the same agent: a picker stands in for login, and each message is answered on its own.
 - **Response caching:** answers depend on live account state, so hits are rare and stale answers are dangerous.
 - **LangChain/LangGraph:** the flow is one path with one retry. LangGraph is where I'd go for multi-turn memory or human pauses.
 - **Multi-turn memory:** the brief is single-question.
@@ -102,6 +102,7 @@ py -3.12 -m venv .venv && .venv\Scripts\activate
 pip install -r requirements.txt
 copy .env.example .env                       # add OPENAI_API_KEY and both model names
 python -m agent.cli CUST-2000 "Was my annual fee waived?" --trace
+streamlit run app.py                         # the same agent in a small chat page
 pytest -q                                    # fake LLM, no key
 python -m eval.run_eval                      # real model, $0.04 to $0.08, gate 80% (CI uses 85%)
 python -m eval.break_demo                    # injection with the exclusion removed

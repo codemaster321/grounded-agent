@@ -57,7 +57,7 @@ customer question + customer_id (from the session, never from the LLM)
 | Tracing | Own `span()` context manager writing **JSONL** | Gives 90% of OpenTelemetry/Langfuse value at 5% of the setup; one line per request is easy to show the panel |
 | Prompts | Files in `prompts/`, version = file name + content hash, logged on every trace | Lets us answer "which prompt produced this answer?" |
 | Eval | CSV of cases + `pytest`-style runner; GitHub Actions gate on pass rate | Seeds plus our own 15+ cases |
-| Interface | CLI | The brief asks for an agent, not a web app; an API layer adds nothing to the marking |
+| Interface | CLI, plus a small Streamlit chat page (`app.py`) | The brief asks for an agent, not a web app, so the page is a thin screen over the same `Agent.answer`. Production would need an API and a login |
 
 ## Key decisions 
 
