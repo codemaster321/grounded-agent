@@ -10,6 +10,19 @@ One further run after the final validator fix scored 28/30 at $0.0025 per questi
 
 The principle is that **the LLM explains and code decides**. Only one step uses the LLM.
 
+**At a glance.** Five steps for every question:
+
+```mermaid
+flowchart LR
+    Q["Question"] --> A["1. Look up<br/>the account"] --> S["2. Look for<br/>the policies"] --> R["3. Check<br/>the rules"]
+    R -->|"rule says no"| D["Decline<br/>(no AI)"]
+    R --> W["4. AI writes<br/>the answer"] --> C["5. Code<br/>checks it"]
+    C -->|"wrong twice"| P["Pass to<br/>a person"]
+    C --> Y["Reply"]
+```
+
+**In detail:**
+
 ```mermaid
 flowchart TD
     Q["Customer question + customer_id from the session"] --> A["Get account (code): one retry, then degraded mode"]
