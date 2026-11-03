@@ -6,6 +6,7 @@ us; at this size a file is enough and nothing leaves the machine.
 """
 import json
 import os
+import threading
 import time
 import uuid
 from contextlib import contextmanager
@@ -15,6 +16,7 @@ from pathlib import Path
 from agent.corpus import ROOT
 
 TRACE_FILE = ROOT / "traces" / "traces.jsonl"
+_write_lock = threading.Lock()  # the web API answers several requests at once
 
 
 class Trace:
@@ -67,6 +69,7 @@ class Trace:
         self.record["total_ms"] = round((time.perf_counter() - self._t0) * 1000)
         path = Path(os.environ.get("TRACE_FILE", TRACE_FILE))
         path.parent.mkdir(exist_ok=True)
-        with path.open("a", encoding="utf-8") as f:
-            f.write(json.dumps(self.record, default=str) + "\n")
+        line = json.dumps(self.record, default=str) + "\n"
+        with _write_lock, path.open("a", encoding="utf-8") as f:
+            f.write(line)
         return self.record

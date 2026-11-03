@@ -1,0 +1,8 @@
+# Redis for sessions, chat history and rate limits. Run: docker compose up -d redis
+# Without it, the API falls back to in-memory storage (lost on restart, one process only).
+services:
+  redis:
+    image: redis:7.4-alpine
+    ports:
+      - "6380:6379"  # 6380 on the host, in case another Redis already uses 6379
+    command: ["redis-server", "--save", "", "--appendonly", "no"]

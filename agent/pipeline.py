@@ -40,6 +40,17 @@ ACCOUNT_UNAVAILABLE = ("I couldn't reach your account details just now, so I can
                        "general policies, not from your account.")
 SAFE_FALLBACK = ("I'm not able to answer this reliably right now, so I've passed your question to a "
                  "colleague rather than guess.")
+# Greetings and thanks get a fixed reply: no account call, no model call, no ticket.
+# Otherwise the model names "greeting" as uncovered and a GENERAL ticket is opened.
+SMALL_TALK = [
+    (re.compile(r"(hi+|hello+|hey+|hiya|good (morning|afternoon|evening))( there)?"),
+     "Hello! I can help with questions about your card, such as fees, your limit, disputes or a lost card. "
+     "What would you like to know?"),
+    (re.compile(r"(thanks?|thank you|ty|ok(ay)?|cool|great)( (so much|a lot))?"),
+     "You're welcome. Is there anything else about your card I can help with?"),
+]
+OFF_TOPIC = ("I can only help with questions about your card and your account with us, so I can't answer that one. "
+             "Is there anything about your card I can help with?")
 CUSTOMER_NOT_FOUND = ("I couldn't find a card account for you, so I can't answer questions about it. "
                       "Please contact us so we can verify your details.")
 
@@ -52,7 +63,7 @@ class AgentResult:
     reason_codes: list[str]
     service_requests: list[dict]
     cited_docs: list[str]
-    path: str  # how the answer was produced: llm | rules | safe_fallback | customer_not_found
+    path: str  # how the answer was produced: llm | rules | safe_fallback | customer_not_found | small_talk
     trace: dict
 
 
@@ -85,6 +96,11 @@ class Agent:
             return self._safe_fallback(turn, "unhandled_error")
 
     def _answer(self, t: _Turn) -> AgentResult:
+        text = t.question.lower().strip(" !.,?")
+        for pattern, reply in SMALL_TALK:
+            if pattern.fullmatch(text):
+                return self._result(t, "answer", [], [], path="small_talk", notice=reply)
+
         with t.trace.span("get_account_state") as span:
             lookup = fetch_account(t.customer_id)
             span.update(status=lookup.status, attempts=lookup.attempts)
@@ -201,6 +217,9 @@ class Agent:
         return request
 
     def _finish(self, t: _Turn, answer: AgentAnswer) -> AgentResult:
+        # Off-topic questions get a fixed reply and no ticket, so chit-chat can't flood the human queues.
+        if answer.off_topic:
+            return self._result(t, "refuse", [], [], path="llm", notice=OFF_TOPIC)
         # A gap in the corpus is always routed to a human, even if the LLM forgot to.
         if answer.uncovered and not t.raised:
             self._raise(t, "GENERAL", f"Question not covered by policy: {answer.uncovered}")

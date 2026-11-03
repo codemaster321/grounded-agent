@@ -32,3 +32,8 @@ class AgentAnswer(BaseModel):
         default=None,
         description="If the policies do not cover the question or part of it, name that part in a few words. Otherwise null.",
     )
+    off_topic: bool = Field(
+        default=False,
+        description="True only if the question has nothing to do with banking, cards or this customer's account "
+                    "(weather, jokes, general chat). A card or banking question the policies don't cover is NOT off-topic.",
+    )

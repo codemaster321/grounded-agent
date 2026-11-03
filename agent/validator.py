@@ -114,6 +114,11 @@ def validate(answer: AgentAnswer, ctx: Context) -> list[str]:
         errors.append("No mandatory decline applies. This assistant cannot decline at its own discretion: "
                       "explain the policy and raise a CREDIT_OPS request for a human decision instead.")
 
+    # Off-topic means no ticket, so it must not hide a real request: no claims, no request raised.
+    if answer.off_topic and (answer.claims or ctx.requests_raised or answer.status != "refuse"):
+        errors.append("off_topic is only for questions unrelated to banking or this card: use status refuse, "
+                      "no claims and no service request. Otherwise set off_topic to false.")
+
     if answer.status == "raise_request" and not ctx.requests_raised:
         errors.append("status is raise_request but raise_service_request was not called.")
 

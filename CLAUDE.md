@@ -14,11 +14,12 @@ A banking card-service agent. Principle: **the LLM explains, code decides.** Rea
 | LLM behaviour | `prompts/system_v1.md` (version hash updates itself) |
 | New safety check on answers | `agent/validator.py` + `tests/test_pipeline.py` |
 | Models | `.env` (`PRIMARY_MODEL`, `FALLBACK_MODEL`) |
-| Chat page | `app.py` (screen only; no decisions or checks here) |
+| Web API: login, chat, history, rate limits | `api/main.py` + `tests/test_api.py` |
+| Web pages and styling | `web/` (Next.js; screen only, no decisions or checks here) |
 
 ## Rules that must keep holding
 
-- `customer_id` comes from the session, never from LLM arguments.
+- `customer_id` comes from the session, never from LLM arguments. In the web API, the session cookie is the only source.
 - The LLM never receives `HIDDEN_FIELDS` (`agent/prompting.py`).
 - There is no approve path. Outcomes are answer, decline (only from `rules.py`), refer, refuse.
 - Customer text is rendered by `pipeline.render` from validated claims. No free LLM text.

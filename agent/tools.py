@@ -61,6 +61,11 @@ def get_account_state(customer_id: str) -> dict:
     return copy.deepcopy(_accounts[customer_id])
 
 
+def customer_exists(customer_id: str) -> bool:
+    """For the web login only; not part of the supplied tool contract."""
+    return customer_id in _accounts
+
+
 def raise_service_request(customer_id: str, category: str, summary: str) -> dict:
     if customer_id not in _accounts:
         raise CustomerNotFound(customer_id)

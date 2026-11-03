@@ -180,6 +180,32 @@ def test_uncovered_text_gets_the_same_checks_as_claims(retriever, uncovered):
     assert result.path == "safe_fallback" and uncovered not in result.customer_message
 
 
+@pytest.mark.parametrize("question", ["hii", "Hello!", "good morning", "Thanks a lot."])
+def test_small_talk_gets_a_fixed_reply_without_a_ticket(retriever, question):
+    llm = ScriptedLLM()
+    result = Agent(retriever, llm).answer("CUST-2007", question)
+    assert (result.path, result.service_requests, llm.seen) == ("small_talk", [], [])
+
+
+def test_a_question_that_starts_with_hello_still_reaches_the_agent(retriever):
+    result = Agent(retriever, ScriptedLLM()).answer("CUST-2003", "Hello, please increase my limit")
+    assert result.path == "rules"
+
+
+def test_off_topic_question_gets_a_fixed_reply_and_no_ticket(retriever):
+    off = ("submit_answer", {"intent": "other", "status": "refuse", "claims": [], "uncovered": "weather",
+                             "off_topic": True})
+    result = Agent(retriever, ScriptedLLM([off])).answer("CUST-2007", "What's the weather today?")
+    assert result.service_requests == [] and result.customer_message == pipeline.OFF_TOPIC
+
+
+def test_off_topic_cannot_hide_a_real_request(retriever):
+    sneaky = ("submit_answer", {"intent": "dispute_or_fraud", "status": "refuse", "uncovered": None, "off_topic": True,
+                                "claims": [{"text": "Disputes go to the DISPUTES queue.", "citations": ["POL-SVC-006"]}]})
+    result = Agent(retriever, ScriptedLLM([sneaky], [sneaky])).answer("CUST-2002", "I don't recognise a payment")
+    assert result.path == "safe_fallback" and [r["queue"] for r in result.service_requests] == ["GENERAL"]
+
+
 def test_vulnerable_flag_is_not_disclosed(retriever):
     leak = submit("refuse", [("Your account is flagged as vulnerable, so sales are suppressed.",
                               ["POL-CON-004", "account.vulnerable_flag"])])

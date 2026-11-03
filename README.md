@@ -1,6 +1,6 @@
 # Grounded service agent
 
-**What I built.** An agent, with a CLI and a small chat page, that answers card questions from the 12-document policy corpus and the customer's account state. It uses hybrid retrieval (BM25 + embeddings with RRF), both supplied tools and a schema-validated answer in which every claim carries a citation checked in code. The principle is that the LLM explains and code decides: mandatory declines are decided and worded in code, the LLM never sees the internal score, and customer text is rendered from validated claims only. There is no approve path. Every failure ends in a defined message and one trace line. Details: [ARCHITECTURE](docs/ARCHITECTURE.md), [FAILURE_MODES](docs/FAILURE_MODES.md), [sample traces](docs/sample_traces.jsonl).
+**What I built.** An agent, with a CLI and a web app (Next.js frontend, FastAPI backend, sign-in, Redis sessions), that answers card questions from the 12-document policy corpus and the customer's account state. It uses hybrid retrieval (BM25 + embeddings with RRF), both supplied tools and a schema-validated answer in which every claim carries a citation checked in code. The principle is that the LLM explains and code decides: mandatory declines are decided and worded in code, the LLM never sees the internal score, and customer text is rendered from validated claims only. There is no approve path. Every failure ends in a defined message and one trace line. Details: [ARCHITECTURE](docs/ARCHITECTURE.md), [FAILURE_MODES](docs/FAILURE_MODES.md), [sample traces](docs/sample_traces.jsonl).
 
 **Results.** 30 cases (12 seed, 18 mine). Three runs of the primary model: **29, 28, 28 of 30** (85/90). The fallback model: **24/30**. About $0.0014 per question, p50 2.9s, p95 9.7s. The remaining primary failures are EV-005 (all three runs) and EV-014 (two): both give the safe behaviour but a different status from the expected one, and I left those expectations unchanged. Per-case detail is in [eval/stability.md](eval/stability.md) and [eval/results.md](eval/results.md). The first runs scored 25–27/30; the increase came from fixes in [FAILURE_MODES](docs/FAILURE_MODES.md), and the prompt and some checks were tuned while looking at these same cases. One set of runs was discarded because the network failed mid-run (12/30); the eval now reports outages separately, but the gate does not yet exclude them.
 
@@ -36,6 +36,18 @@ flowchart TD
 | Tools | `agent/tools.py` (the two supplied tools), `agent/upstream.py` (safe account call) |
 | Retrieval | `agent/corpus.py`, `agent/corpus_manifest.json`, `agent/retrieval.py` |
 | Prompt and tracing | `agent/prompting.py`, `prompts/system_v1.md`, `agent/tracing.py` |
+| Backend API | `api/main.py` (login, chat, history, rate limits), `api/store.py` (Redis, or memory) |
+| Frontend | `web/` (Next.js): sign-in page and chat page |
+
+```mermaid
+flowchart LR
+    B["Browser"] -->|"httpOnly cookies"| N["Next.js website (web/)"]
+    N -->|"forwards /api"| F["FastAPI backend (api/)"]
+    F <-->|"tokens, history, rate limits"| R[("Redis")]
+    F -->|"question + customer from the token"| A["Agent (agent/)"]
+```
+
+**Web app.** The browser talks only to the Next.js server, which forwards `/api` to FastAPI, so the session cookie is first-party and httpOnly. Login issues an access token (10 minutes) and a refresh token, both random strings held in Redis, in httpOnly cookies; the refresh cookie is only sent to `/api/auth`. Each refresh swaps the refresh token for a new pair, and a refresh token used twice ends the whole session, since it means someone else holds a copy. A session lasts at most 8 hours, and sign-out ends it at once. I chose server-side tokens over JWTs because a bank must be able to revoke a session immediately. The chat endpoint accepts a question and nothing else: the customer comes from the access token, never from the browser or the LLM. Redis also holds the last 50 messages per customer and per-minute rate limits (10 questions per customer, 5 login attempts per customer ID, since behind the proxy every browser shares one IP). A refresh token reused within 10 seconds is treated as a second tab, not theft, so an attacker that fast goes undetected. If Redis fails while the API is running, it switches to memory until restart, which signs everyone out once instead of failing every request. Greetings get a fixed reply with no model call, and questions the model marks off-topic (weather, jokes) get a fixed reply with no ticket, so chit-chat can't flood the human queues; a card or banking question the policies don't cover still opens one. If Redis isn't running, the API uses in-memory storage, which is lost on restart and doesn't work across several workers. The page only styles the message that `pipeline.render` produced; it adds no text of its own beyond labels.
 
 ## Execution flow
 
@@ -70,7 +82,8 @@ Full reasoning: [ARCHITECTURE](docs/ARCHITECTURE.md).
 
 **Deliberately not built.**
 - **Streaming:** text must pass validation before the customer sees it, so streaming tokens would defeat the check.
-- **Vector DB, API server, login:** 12 documents fit in memory, and none of these is being assessed. The chat page (`app.py`) is a thin screen over the same agent: a picker stands in for login, and each message is answered on its own.
+- **Vector DB:** 12 documents fit in memory.
+- **Real identity:** every demo customer shares one password from `.env`. A bank would plug in its own identity provider; the API already takes the customer only from the session.
 - **Response caching:** answers depend on live account state, so hits are rare and stale answers are dangerous.
 - **LangChain/LangGraph:** the flow is one path with one retry. LangGraph is where I'd go for multi-turn memory or human pauses.
 - **Multi-turn memory:** the brief is single-question.
@@ -102,8 +115,17 @@ py -3.12 -m venv .venv && .venv\Scripts\activate
 pip install -r requirements.txt
 copy .env.example .env                       # add OPENAI_API_KEY and both model names
 python -m agent.cli CUST-2000 "Was my annual fee waived?" --trace
-streamlit run app.py                         # the same agent in a small chat page
 pytest -q                                    # fake LLM, no key
 python -m eval.run_eval                      # real model, $0.04 to $0.08, gate 80% (CI uses 85%)
 python -m eval.break_demo                    # injection with the exclusion removed
 ```
+
+**Web app** (Node 20+). Three terminals:
+
+```
+docker compose up -d redis                   # optional, on port 6380; without it, storage falls back to memory
+uvicorn api.main:app --port 8000             # backend
+cd web && npm install && npm run dev         # website on http://localhost:3000
+```
+
+Sign in as any of CUST-2000 to CUST-2009 with `DEMO_PASSWORD` (default `demo1234`).
