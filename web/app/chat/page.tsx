@@ -69,6 +69,13 @@ export default function Chat() {
     router.replace("/");
   }
 
+  async function newChat() {
+    if (pending) return;
+    await api.clearHistory().catch(() => {});
+    setTurns([]);
+    setNotice("");
+  }
+
   if (!me) return null;
   const firstName = me.name?.split(" ")[0];
 
@@ -78,6 +85,7 @@ export default function Chat() {
         <a className="wordmark" href="/chat"><b>Grounded</b><span className="eyebrow">Card desk</span></a>
         <nav>
           <span className="who eyebrow">{me.card_product ? `${me.card_product} card · ` : ""}{me.customer_id}</span>
+          {turns.length > 0 && <button className="link" onClick={newChat} disabled={pending}>New chat</button>}
           <button className="link" onClick={signOut}>Sign out</button>
         </nav>
       </header>

@@ -59,5 +59,8 @@ export const api = {
   logout: () => call("/auth/logout", { method: "POST" }),
   me: () => call<Me>("/me"),
   history: () => call<{ messages: Turn[] }>("/history"),
+  clearHistory: () => call("/history", { method: "DELETE" }),
+  feedback: (trace_id: string, helpful: boolean) =>
+    call("/feedback", { method: "POST", body: JSON.stringify({ trace_id, helpful }) }),
   ask: (question: string) => call<AgentReply>("/chat", { method: "POST", body: JSON.stringify({ question }) }),
 };

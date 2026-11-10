@@ -1,6 +1,7 @@
 "use client";
 
-import type { AgentReply } from "@/lib/api";
+import { useState } from "react";
+import { api, type AgentReply } from "@/lib/api";
 
 const STATUS_LABEL: Record<AgentReply["status"], string> = {
   answer: "Answered",
@@ -47,6 +48,31 @@ function sourceLabel(label: string) {
   return field ? `Your account · ${field[1].replace(/_/g, " ")}` : label;
 }
 
+// Thumbs up/down, saved against the answer's trace so staff can review the whole request.
+function Rate({ traceId }: { traceId: string }) {
+  const [state, setState] = useState<"idle" | "saving" | "done" | "error">("idle");
+
+  async function rate(helpful: boolean) {
+    setState("saving");
+    try {
+      await api.feedback(traceId, helpful);
+      setState("done");
+    } catch {
+      setState("error");
+    }
+  }
+
+  if (state === "done") return <span>Thanks for the feedback</span>;
+  return (
+    <span className="rate">
+      <span>Helpful?</span>
+      <button aria-label="Helpful" disabled={state === "saving"} onClick={() => rate(true)}>👍</button>
+      <button aria-label="Not helpful" disabled={state === "saving"} onClick={() => rate(false)}>👎</button>
+      {state === "error" && <span>Couldn&apos;t save, try again</span>}
+    </span>
+  );
+}
+
 export function Answer({ reply }: { reply: AgentReply }) {
   const { body, tickets, sources } = parse(reply.message);
 
@@ -78,6 +104,7 @@ export function Answer({ reply }: { reply: AgentReply }) {
       )}
       <div className="meta mono">
         <span>{PATH_LABEL[reply.path]}</span>
+        <Rate traceId={reply.meta.trace_id} />
       </div>
     </div>
   );

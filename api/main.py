@@ -18,8 +18,11 @@ import hmac
 import json
 import os
 import secrets
+import threading
 import time
 from contextlib import asynccontextmanager
+from datetime import datetime, timezone
+from pathlib import Path
 
 os.environ.setdefault("HF_HUB_DISABLE_SYMLINKS_WARNING", "1")
 
@@ -31,6 +34,7 @@ from fastapi import Cookie, Depends, FastAPI, HTTPException, Request, Response  
 from pydantic import BaseModel, Field  # noqa: E402
 
 from agent import tools  # noqa: E402
+from agent.corpus import ROOT  # noqa: E402
 from agent.pipeline import Agent  # noqa: E402
 from agent.upstream import fetch_account  # noqa: E402
 from api.store import make_store  # noqa: E402
@@ -44,6 +48,8 @@ HISTORY_KEEP = 50
 HISTORY_TTL_S = 24 * 3600
 CHAT_PER_MINUTE = 10
 LOGIN_PER_MINUTE = 5
+FEEDBACK_PER_MINUTE = 20
+_feedback_lock = threading.Lock()  # several requests can write the file at once
 
 
 @asynccontextmanager
@@ -63,6 +69,11 @@ class Login(BaseModel):
 
 class Question(BaseModel):
     question: str = Field(min_length=1, max_length=1000)
+
+
+class Feedback(BaseModel):
+    trace_id: str = Field(max_length=32)
+    helpful: bool
 
 
 def _limit(store, key: str, per_minute: int):
@@ -162,6 +173,32 @@ def me(customer_id: str = Depends(current_customer)):
 @app.get("/api/history")
 def history(request: Request, customer_id: str = Depends(current_customer)):
     return {"messages": request.app.state.store.items(f"history:{customer_id}")}
+
+
+@app.post("/api/feedback")
+def feedback(body: Feedback, request: Request, customer_id: str = Depends(current_customer)):
+    store = request.app.state.store
+    _limit(store, f"feedback:{customer_id}", FEEDBACK_PER_MINUTE)
+    # Only answers in this customer's own history can be rated.
+    mine = {m.get("meta", {}).get("trace_id") for m in store.items(f"history:{customer_id}")}
+    if body.trace_id not in mine:
+        raise HTTPException(404, "Answer not found.")
+    # A file next to the traces, so ratings last and join to the full trace by trace_id.
+    # No customer_id: the trace already links to the customer.
+    line = json.dumps({"at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+                       "trace_id": body.trace_id, "helpful": body.helpful})
+    path = Path(os.environ.get("FEEDBACK_FILE", ROOT / "traces" / "feedback.jsonl"))
+    path.parent.mkdir(exist_ok=True)
+    with _feedback_lock, path.open("a", encoding="utf-8") as f:
+        f.write(line + "\n")
+    return {"ok": True}
+
+
+@app.delete("/api/history")
+def clear_history(request: Request, customer_id: str = Depends(current_customer)):
+    # Clears the chat on screen only; traces are kept as the audit record.
+    request.app.state.store.delete(f"history:{customer_id}")
+    return {"ok": True}
 
 
 @app.post("/api/chat")

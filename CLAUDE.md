@@ -34,4 +34,6 @@ A banking card-service agent. Principle: **the LLM explains, code decides.** Rea
 ```
 
 The model is non-deterministic: compare several eval runs, not one. Check a trace in
-`traces/traces.jsonl` when behaviour looks wrong.
+`traces/traces.jsonl` when behaviour looks wrong. `eval.run_eval` overwrites `eval/results.*`;
+ask before running it. Restart the backend after Python changes, and rebuild the website after
+`web/` changes.

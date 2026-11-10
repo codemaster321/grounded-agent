@@ -1,4 +1,8 @@
 """Web API: login, session-bound customer, history and rate limits. Fake LLM, memory store."""
+import json
+import os
+from pathlib import Path
+
 import pytest
 import redis
 from fastapi.testclient import TestClient
@@ -10,10 +14,11 @@ from tests.test_pipeline import ScriptedLLM, submit
 
 
 @pytest.fixture(autouse=True)
-def fast_tools(monkeypatch):
+def fast_tools(monkeypatch, tmp_path):
     monkeypatch.setenv("TOOL_LATENCY_S", "0")
     monkeypatch.setenv("TOOL_FAIL_RATE", "0")
     monkeypatch.setenv("DEMO_PASSWORD", "pw")
+    monkeypatch.setenv("FEEDBACK_FILE", str(tmp_path / "feedback.jsonl"))
 
 
 @pytest.fixture(scope="module")
@@ -138,3 +143,36 @@ def test_chat_is_rate_limited(agent, monkeypatch):
     client = signed_in(agent, customer_id="CUST-2003")
     assert client.post("/api/chat", json={"question": "Please increase my limit"}).status_code == 200
     assert client.post("/api/chat", json={"question": "Please increase my limit"}).status_code == 429
+
+
+def test_new_chat_clears_only_your_own_history(agent):
+    client = signed_in(agent, customer_id="CUST-2003")
+    store = main.app.state.store
+    client.post("/api/chat", json={"question": "Please increase my limit"})
+    store.push("history:CUST-2007", {"role": "customer", "text": "someone else's"}, keep=50, ttl=60)
+    assert client.delete("/api/history").status_code == 200
+    assert client.get("/api/history").json()["messages"] == []
+    assert store.items("history:CUST-2007") != []
+
+
+def saved_feedback():
+    path = Path(os.environ["FEEDBACK_FILE"])
+    return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines()] if path.exists() else []
+
+
+def test_rating_your_own_answer_is_saved_with_its_trace(agent):
+    client = signed_in(agent, customer_id="CUST-2003")
+    trace_id = client.post("/api/chat", json={"question": "Please increase my limit"}).json()["meta"]["trace_id"]
+    assert client.post("/api/feedback", json={"trace_id": trace_id, "helpful": False}).status_code == 200
+    [row] = saved_feedback()
+    assert (row["trace_id"], row["helpful"]) == (trace_id, False) and "customer_id" not in row
+
+
+def test_you_cannot_rate_an_answer_that_is_not_yours(agent):
+    client = signed_in(agent, customer_id="CUST-2003")
+    assert client.post("/api/feedback", json={"trace_id": "someone-else", "helpful": True}).status_code == 404
+    assert saved_feedback() == []
+
+
+def test_rating_needs_a_session(agent):
+    assert client_for(agent).post("/api/feedback", json={"trace_id": "x", "helpful": True}).status_code == 401

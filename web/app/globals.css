@@ -202,6 +202,11 @@ a { color: inherit; }
 .meta { margin-top: 18px; color: var(--muted); display: flex; flex-wrap: wrap; gap: 6px 14px; }
 .meta button { color: var(--muted); text-decoration: underline; text-underline-offset: 3px; }
 
+.rate { display: inline-flex; align-items: center; gap: 6px; margin-left: auto; }
+.rate button { text-decoration: none; font-size: 14px; opacity: 0.55; transition: opacity 0.2s, transform 0.3s var(--ease); }
+.rate button:hover:not(:disabled) { opacity: 1; transform: translateY(-1px); }
+.rate button:disabled { cursor: wait; }
+
 .pending { display: flex; align-items: center; gap: 12px; margin-top: 28px; color: var(--muted); }
 .pending .bar { width: 64px; height: 1px; background: var(--line); position: relative; overflow: hidden; }
 .pending .bar::after { content: ""; position: absolute; inset: 0; width: 40%; background: var(--ink); animation: scan 1.2s var(--ease) infinite; }
